@@ -1,0 +1,69 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(monocle3)
+library(Seurat)
+library(SeuratData)
+library(SeuratWrappers)
+library(ggplot2)
+library(patchwork)
+```
+```{r}
+load("~/sample.seurat")
+sample.cds <- as.cell_data_set(sample.seurat)
+
+sample.cds<-cluster_cells(sample.cds, k=6, num_iter = 5000, partition_qval = 0.0001)
+
+colData(sample.cds)$partitions = partitions(sample.cds) 
+
+samplepart1.cds <- sample.cds[, colData(sample.cds)$partitions == 1] 
+samplepart1.cds <- cluster_cells(samplepart1.cds)
+
+samplepart2.cds <- sample.cds[, colData(sample.cds)$partitions == 2] 
+samplepart2.cds <- cluster_cells(samplepart2.cds)
+
+samplepart3.cds <- sample.cds[, colData(sample.cds)$partitions == 3] 
+samplepart3.cds <- cluster_cells(samplepart3.cds)
+
+samplepart4.cds <- sample.cds[, colData(sample.cds)$partitions == 4] 
+samplepart4.cds <- cluster_cells(samplepart4.cds)
+
+samplepart5.cds <- sample.cds[, colData(sample.cds)$partitions == 5] 
+samplepart5.cds <- cluster_cells(samplepart5.cds)
+
+
+
+samplepart1.cds<-learn_graph(samplepart1.cds, learn_graph_control=list(ncenter=300))
+samplepart2.cds<-learn_graph(samplepart2.cds, learn_graph_control=list(ncenter=310))
+samplepart3.cds<-learn_graph(samplepart3.cds, learn_graph_control=list(ncenter=250))
+samplepart4.cds<-learn_graph(samplepart4.cds, learn_graph_control=list(ncenter=175))
+samplepart5.cds<-learn_graph(samplepart5.cds, learn_graph_control=list(ncenter=25))
+```
+
+```{r}
+get_earliest_principal_node1 <- function(samplepart1.cds, time_bin="GW 10.2"){
+  cell_ids <- which(colData(samplepart1.cds)[, "GW"] == time_bin)
+  
+  closest_vertex <-
+  samplepart1.cds@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(samplepart1.cds), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(samplepart1.cds)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+samplepart1.cds <- order_cells(samplepart1.cds, root_pr_nodes=c(get_earliest_principal_node1(samplepart1.cds)))
+                        
+plot_cells(samplepart1.cds,
+           color_cells_by = "pseudotime",
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=2,
+           cell_size = 1.5)
+```

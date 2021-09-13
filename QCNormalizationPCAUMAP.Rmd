@@ -1,0 +1,75 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(tidyverse)
+
+#Retrieve from https://www.dropbox.com/s/hus4mrkueh1tfpr/cycle.rda?dl=1
+load("~/scratch/download/cycle.rda?dl=1")
+
+sample.data <- Read10X(data.dir = "PathToData")
+
+sample.seurat <- CreateSeuratObject(counts = sample.data, min.cells = 3)
+
+sample.seurat <- PercentageFeatureSet(sample.seurat, pattern = "^MT-", col.name = "percent.mito")
+
+VlnPlot(sample.seurat, 
+        features = c("nFeature_RNA", "nCount_RNA", "percent.mito"), 
+        pt.size = 0.25,
+        ncol = 3)
+sample.seurat <- subset(sample.seurat, 
+               subset = nFeature_RNA > 300 & 
+                 percent.mito < 10)
+```
+```{r}
+
+sample.seurat <- PercentageFeatureSet(sample.seurat, pattern = "^MT-", col.name = "percent.mito")
+
+sample.seurat <- SCTransform(sample.seurat, vars.to.regress = c("percent.mito", "nFeature_RNA", "nCount_RNA"), verbose = FALSE)
+
+sample.seurat <- CellCycleScoring(
+  sample.seurat,
+  s.features = s_genes,
+  g2m.features = g2m_genes,
+  assay = 'SCT',
+  set.ident = TRUE)
+
+sample.seurat <- SCTransform(
+  sample.seurat,
+  assay = 'RNA',
+  new.assay.name = 'SCT',
+  vars.to.regress = c('percent.mito', 'nFeature_RNA', 'nCount_RNA', 'S.Score', 'G2M.Score'))
+```
+
+```{r}
+sample.seurat <- RunPCA(sample.seurat, verbose = FALSE)
+
+ElbowPlot(sample.seurat, ndims = 50)
+
+sample.seurat <- RunUMAP(sample.seurat, dims = 1:50, verbose = FALSE)
+```
+```{r}
+sample.seurat <- FindNeighbors(sample.seurat, dims = 1:50, verbose = FALSE)
+sample.seurat <- FindClusters(sample.seurat, verbose = FALSE)
+
+sample.seuratindexclustermarkers <- FindAllMarkers(sample.seurat, logfc.threshold = 0.25, only.pos = T)
+
+saveRDS(sample.seurat, file = "PathtoSave")
+saveRDS(sample.seuratindexclustermarkers, file = "PathtoSave")
+```
+
+```{r}
+load("~/sample_annotation.RDS")
+load("~/sample_palette.RDS")
+
+Idents(sample.seurat) <- "seurat_clusters"
+
+names(sample_annotation) <- levels(sample.seurat)
+
+sample.seurat <- RenameIdents(sample.seurat, sample_annotation)
+
+z1<-DimPlot(NewALIJuly7, reduction = "umap", pt.size = 2.5, cols = sample_palette)
+```
